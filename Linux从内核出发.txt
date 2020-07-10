@@ -1,0 +1,92 @@
+编译安装linux内核: 
+
+1. 环境配置(可能需要)
+sudo apt update     //更新软件列表
+sudo apt upgrade    //更新软件
+
+sudo apt-get install git fakeroot build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison
+
+2. 解压内核压缩包
+tar -zxf linux-5.3.10.tar.xz
+cd linux-5.3.10
+
+3. 配置内核
+在正式编译内核之前，我们首先必须配置需要包含哪些模块。
+你也可以拷贝当前内核的配置文件，然后使用menuconfig命令来做任何必要的更改。
+cp /boot/config-$(uname -r) .config     //拷贝当前的内核的配置文件到当前目录下并重命名为.config
+make mrproper				            //清理以前编译时留下的临时文件,如果是刚刚解压的内核压缩包,请忽略此步骤!
+make menuconfig                         //启用或者禁用一些模块，无改动则默认退出
+
+4. 编译和安装
+编译内核
+两种方式：
+(1)
+    make -j4
+
+(2)
+    make bzImage -j8
+    make modules -j8
+
+这两种方式有什么区别？？
+2.6的make等于以前的make bzImage和make modules，具体其他版本有什么区别，需要看下makefile验证一下
+
+-j4 意思启动4个线程编译
+-jN部分，N越大，编译速度越快，当然，不要超过自己机器的上限。
+
+安装模块
+sudo make modules_install       //安装内核模块到/lib/modules下
+
+安装内核
+sudo make install               //安装内核二进制映像，生成并安装boot初始化文件系统映像文件
+
+5.启用内核作为引导
+sudo update-initramfs -c -k 5.5.13      //将内核作为引导，将数字更改为你自己编译的版本号   
+
+sudo update-grub
+
+6.内核开发的特点：
+
+内核编程时既不能访问C库也不能访问标准的C头文件。
+内核编程是必须使用GNU C。
+内核编程时缺乏像用户空间那样的内存保护机制。
+内核编程时难以执行浮点运算。
+内核给每个进程只有一个很小的定长堆栈。
+由于内核支持异步中断、抢占和SMP，因此必须时刻注意同步和并发。
+要考虑可移植性的重要性。
+
+(1)大部分常用的C库函数在内核中都已经得到了实现
+(2)GNU C
+内联函数: 
+static inline void wolf(unsigned long tail_size)
+在所调用的位置上展开，可以消除函数调动多带来的开销(寄存器存储和恢复)，但是会占用更多的内存空间或者占用更多的指令缓存。内核中，为了类型安全和易读性，优先使用内联函数而不是复杂的宏。
+
+内联汇编:
+unsigned int low, high;
+asm volatile("rdtsc" : "=a" (low), "=d" (high));
+/* low和high分别包含64位时间戳的低32位和高32位 */
+
+分支申明:
+把一个选择标记成绝少发生的分支
+
+//我们认为error绝大多数时间都会为0
+if (unlikely(error)){
+    /* ... */
+}
+
+把一个选择标记成通常发生的分支
+
+//我们认为success通常都不会为0
+if (likely(success)){
+    /* ... */
+}
+
+(3)没有内存保护机制
+用户程序试图非法内存访问，内核会发送SIGSEGV信号，结束这个进程。内核发生非法访问内存，后果难以控制，就会导致oops。
+
+(4)容积小而固定的栈
+内核栈的准确大小随体系结构而变。32位机的内核栈是8KB，64位机是16KB。
+
+
+
+
+
